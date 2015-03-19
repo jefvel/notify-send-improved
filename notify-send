@@ -16,6 +16,7 @@ class NotifyThing:
         self.appname = "notify-send"
         self.summary = ""
         self.delete = False
+        self.printID = False
         self.urgencies = {
                 "low":dbus.Byte(0),
                 "normal":dbus.Byte(1),
@@ -40,12 +41,18 @@ Application Options:
   -h, --hint=TYPE:NAME:VALUE        Specifies basic extra data to pass. Valid types are int, double, string and byte.
   -v, --version                     Version of the package.
   -r, --replace                     Replaces old notification posessing the specified id.
-  -d, --close                       Closes notification with specified id.
+  -s, --close                       Closes notification with specified id.
+  -p, --print                       Prints id of notification.
         ''')
 
     def parseHints(self):
-        hintList = self.hint.split(":")
         hints = dbus.Dictionary()
+        if self.urgency in self.urgencies:
+            hints["urgency"] = self.urgencies[self.urgency]
+        if self.category != None:
+            hints["category"] = dbus.String(self.category)
+
+        hintList = self.hint.split(":")
         for i in range(0, int(len(hintList) / 3)):
             x = i * 3
             val = hintList[x + 2]
@@ -73,25 +80,17 @@ Application Options:
 
     def sendNotification(self):
         notifyservice = self.getBus()
-
         hints = self.parseHints()
 
-        if self.urgency in self.urgencies:
-            if "urgency" not in hints:
-                hints["urgency"] = self.urgencies[self.urgency]
-        if self.category != None:
-            if "category" not in hints:
-                hints["category"] = dbus.String(self.category)
-
-        return notifyservice.Notify(self.appname,
+        i = notifyservice.Notify(self.appname,
           self.nid, self.icon, self.summary, self.body, [],
             hints, self.duration)
+        if self.printID:
+            print(i)
 
     def closeNotification(self):
         notifyservice = self.getBus()
         notifyservice.CloseNotification(self.nid)
-
-
 
     def updateParams(self, opts):
         for opt, arg in opts:
@@ -112,19 +111,21 @@ Application Options:
                 self.hint = arg
             if opt in ("-a", "--app-name"):
                 self.appname = arg
-            if opt in ("-d", "--delete"):
+            if opt in ("-s", "--close"):
                 self.nid = arg
                 self.delete = True
+            if opt in ("-p", "--print"):
+                self.printID = True
 
 def main(argv):
     try:
         opts, args = getopt.getopt(argv,
-                "r:u:t:i:c:?h:a:vd:",
+                "r:u:t:i:c:?h:a:vs:p",
                 [ "replace=", "urgency=",
                   "expire-time=", "icon=",
                   "category=", "help", "hint=",
                   "app-name=", "version",
-                  "close="
+                  "close=", "print"
                 ])
     except getopt.GetoptError:
         NotifyThing.usage(None)
@@ -145,9 +146,8 @@ def main(argv):
 
     if len(args) > 1:
         notifier.body = args[1]
-        #notifier.summary = args[0]
 
-    print(notifier.sendNotification())
+    notifier.sendNotification()
 
     return
 
