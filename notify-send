@@ -1,0 +1,156 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+import dbus
+import sys
+import getopt
+
+class NotifyThing:
+    def __init__(self):
+        self.nid = 0
+        self.body = ""
+        self.hint = ""
+        self.duration = -1
+        self.urgency = "normal"
+        self.icon = ""
+        self.category = None
+        self.appname = "notify-send"
+        self.summary = ""
+        self.delete = False
+        self.urgencies = {
+                "low":dbus.Byte(0),
+                "normal":dbus.Byte(1),
+                "critical":dbus.Byte(2)
+                }
+
+    def usage(self):
+        print('''\
+Usage:
+  notify-send [OPTION...] <SUMMARY> [BODY] - create a notification
+  prints ID of created notification.
+
+Help Options:
+  -?, --help                        Show help options
+
+Application Options:
+  -u, --urgency=LEVEL               Specifies the urgency level (low, normal, critical).
+  -t, --expire-time=TIME            Specifies the timeout in milliseconds at which to expire the notification.
+  -a, --app-name=APP_NAME           Specifies the app name for the icon
+  -i, --icon=ICON[,ICON...]         Specifies an icon filename or stock icon to display.
+  -c, --category=TYPE[,TYPE...]     Specifies the notification category.
+  -h, --hint=TYPE:NAME:VALUE        Specifies basic extra data to pass. Valid types are int, double, string and byte.
+  -v, --version                     Version of the package.
+  -r, --replace                     Replaces old notification posessing the specified id.
+  -d, --close                       Closes notification with specified id.
+        ''')
+
+    def parseHints(self):
+        hintList = self.hint.split(":")
+        hints = dbus.Dictionary()
+        for i in range(0, int(len(hintList) / 3)):
+            x = i * 3
+            val = hintList[x + 2]
+            hintType = hintList[x]
+            hintName = hintList[x + 1]
+            if hintType == "byte":
+                hints[hintName] = dbus.Byte(int(val))
+            if hintType == "float":
+                hints[hintName] = dbus.Int32(int(float(val)))
+            if hintType == "int":
+                hints[hintName] = dbus.Int32(int(val))
+            if hintType == "boolean":
+                hints[hintName] = dbus.Boolean(val)
+            if hintType == "string":
+                hints[hintName] = dbus.String(val)
+        return hints
+
+    def getBus(self):
+        bus = dbus.Bus(dbus.Bus.TYPE_SESSION)
+        notifyservice = bus.get_object(
+          'org.freedesktop.Notifications', '/org/freedesktop/Notifications')
+        return dbus.Interface(
+          notifyservice, "org.freedesktop.Notifications")
+
+
+    def sendNotification(self):
+        notifyservice = self.getBus()
+
+        hints = self.parseHints()
+
+        if self.urgency in self.urgencies:
+            if "urgency" not in hints:
+                hints["urgency"] = self.urgencies[self.urgency]
+        if self.category != None:
+            if "category" not in hints:
+                hints["category"] = dbus.String(self.category)
+
+        return notifyservice.Notify(self.appname,
+          self.nid, self.icon, self.summary, self.body, [],
+            hints, self.duration)
+
+    def closeNotification(self):
+        notifyservice = self.getBus()
+        notifyservice.CloseNotification(self.nid)
+
+
+
+    def updateParams(self, opts):
+        for opt, arg in opts:
+            if opt in ("-?", "--help"):
+                self.usage()
+                sys.exit()
+            if opt in ("-r", "--replace"):
+                self.nid = int(arg)
+            if opt in ("-u", "--urgency"):
+                self.urgency = arg
+            if opt in ("-t", "--expire-time"):
+                self.duration = int(arg)
+            if opt in ("-i", "--icon"):
+                self.icon = arg
+            if opt in ("-c", "--category"):
+                self.category = arg
+            if opt in ("-h", "--hint"):
+                self.hint = arg
+            if opt in ("-a", "--app-name"):
+                self.appname = arg
+            if opt in ("-d", "--delete"):
+                self.nid = arg
+                self.delete = True
+
+def main(argv):
+    try:
+        opts, args = getopt.getopt(argv,
+                "r:u:t:i:c:?h:a:vd:",
+                [ "replace=", "urgency=",
+                  "expire-time=", "icon=",
+                  "category=", "help", "hint=",
+                  "app-name=", "version",
+                  "close="
+                ])
+    except getopt.GetoptError:
+        NotifyThing.usage(None)
+        sys.exit(2)
+
+    notifier = NotifyThing()
+    notifier.updateParams(opts)
+
+    if notifier.delete:
+        notifier.closeNotification()
+        sys.exit()
+
+    if len(args) < 1:
+        print("No summary specified.")
+        sys.exit(2)
+
+    notifier.summary = args[0]
+
+    if len(args) > 1:
+        notifier.body = args[1]
+        #notifier.summary = args[0]
+
+    print(notifier.sendNotification())
+
+    return
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
+
