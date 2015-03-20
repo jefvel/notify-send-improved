@@ -18,8 +18,8 @@ Requires Python.
       -c, --category=TYPE[,TYPE...]     Specifies the notification category.
       -h, --hint=TYPE:NAME:VALUE        Specifies basic extra data to pass. Valid types are int, double, string and byte.
       -v, --version                     Version of the package.
-      -r, --replace                     Replaces old notification posessing the specified id.
-      -s, --close                       Closes notification with specified id.
+      -r, --replace=ID                  Replaces old notification posessing the specified id.
+      -s, --close=ID                    Closes notification with specified id.
       -p, --print                       Prints id of notification.
 
 
